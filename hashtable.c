@@ -36,7 +36,7 @@ struct table_s {
 
 static table_t tables[256];  // we don't need more than 256 tables for language feature stuff
 
-node_t* make_node(char* name) {
+static node_t* make_node(char* name) {
   node_t* rval = malloc(sizeof(node_t));
   rval->val.code = crc32(name);
   rval->val.key = name;
@@ -56,7 +56,7 @@ void add_table(char *name) {
   }
 }
 
-table_t get_table(char *name) {
+static table_t get_table(char *name) {
   uint32_t table_hash = crc32(name);
   uint8_t table_bucket = table_hash % 256;
   return tables[table_bucket];
