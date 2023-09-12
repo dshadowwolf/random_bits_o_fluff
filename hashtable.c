@@ -73,8 +73,7 @@ static void __insert_inner(char *name, node_t* insert, node_t* tree) {
         // overwrite existing keys
         work->data = insert->data;
         free(insert);
-        return;
-      } else {
+        return;      } else {
         // if we have a hash collision, insert into a linked list
         list_t* nn = malloc(sizeof(list_t));
         nn->id = insert->val.key;
@@ -121,7 +120,7 @@ static void insert_node(char *name, node_t* node, table_t* table) {
   }
 }
 
-node_t* add_to_table(char *table, char* key) {
+void register_node(char *table, char* key) {
   table_t t = get_table(table);
 
   if (t.id == NULL || t.hash == 0) {
@@ -132,7 +131,6 @@ node_t* add_to_table(char *table, char* key) {
 
   node_t* nn = make_node(key);
   insert_node(name, nn, &t);
-  return nn;
 }
 
 static node_t* __get_internal(char *name, node_t* bucket) {
@@ -173,7 +171,7 @@ static node_t* __get_internal(char *name, node_t* bucket) {
   }
 }
 
-void* get_node(char *name, node_t* bucket) {
+static void* get_node(char *name, node_t* bucket) {
   node_t* base = __get_internal(name, bucket);
   if (base == NULL) {
     return NULL;
@@ -184,7 +182,7 @@ void* get_node(char *name, node_t* bucket) {
   return rv;
 }
 
-void set_node_data(char *name, node_t* bucket, void* data) {
+static void set_node_data(char *name, node_t* bucket, void* data) {
   node_t* base = __get_internal(name, bucket);
 
   if (base == NULL) {
@@ -192,4 +190,19 @@ void set_node_data(char *name, node_t* bucket, void* data) {
   }
   base->data = data;
   __insert_inner(name, base, bucket);
+}
+
+void *node_get(char *table, char *name) {
+  table_t* source = get_table(table);
+  uint32_t node_crc = crc32(name);
+  uint8_t bid = node_crc % 256;
+
+  return get_node(name, source->buckets[bid]);
+}
+
+void node_set(char *table, char *name, void* data) {
+  table_t* source = get_table(table);
+  uint32_t node_crc = crc32(name);
+  uint8_t bid = node_crc % 256;
+  set_node_data(name, source->buckets[bid], data);
 }
