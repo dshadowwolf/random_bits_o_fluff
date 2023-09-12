@@ -13,11 +13,20 @@ struct node_s {
   } val;
 
   void* data;
+  int8_t is_volatile;
+  list_t *collisions;
   node_t* left;
   node_t* right;
 };
 
 typedef struct table_s table_t;
+typedef struct list_s list_t;
+
+struct list_s {
+  char *id;
+  void *data;
+  list_t *next;
+};
 
 struct table_s {
   char *id;
@@ -61,15 +70,23 @@ static void __insert_inner(char *name, node_t* insert, node_t* tree) {
   for (int k = 0; k < 32; k++) {
     if (work->val.code == base) {
       if (strcmp(work->val.key, insert->val.key) == 0) {
-        printf("Key with name %s already exists!\n", insert->val.key);
-        exit(-1);
+        // overwrite existing keys
+        work->data = insert->data;
+        free(insert);
+        return;
       } else {
-        /*
-         * TODO: If two keys hash exactly the same, there will be a direct collision. This can probably be resolved by doing a sub-insert but...
-         * That feels rather messy.
-         */
-        printf("Hash Match, Key Mismatch: TODO -- Fix This Issue (%s -- %s)\n", name, work->val.key);
-        exit(-1);
+        // if we have a hash collision, insert into a linked list
+        list_t* nn = malloc(sizeof(list_t));
+        nn->id = insert->val.key;
+        nn->data = insert->data;
+        free(insert);
+
+        if (work->collisions == NULL) work->collisions = nn;
+        else {
+          list_t* wl = work->collisions;
+          while (wl->next != NULL) wl = wl->next;
+          wl->next = nn;
+        }
       }
     } else {
       if (curr & 1) {
@@ -118,12 +135,25 @@ node_t* add_to_table(char *table, char* key) {
   return nn;
 }
 
-node_t* get_node(char *name, node_t* bucket) {
+static node_t* __get_internal(char *name, node_t* bucket) {
   node_t* work = bucket;
   uint32_t cc = crc32(name);
   while(1) {
     if (strcmp(bucket->val.key, name) == 0) {
       return bucket;
+    } else if (bucket->val.code == cc) {
+      list_t* ll = bucket->collisions;
+      while(ll != NULL) {
+        if (strcmp(ll->id, name) == 0) {
+          node_t* rr = make_node(name);
+          rr->data = ll->data;
+          rr->is_volatile = 1;
+          return rr;
+        }
+        ll = ll->next;
+      }
+      printf("Entry with id \"%s\" not found in data!\n", name);
+      return NULL;
     }
 
     if (cc & 1) {
@@ -141,4 +171,25 @@ node_t* get_node(char *name, node_t* bucket) {
     }
     cc >>= 1;
   }
+}
+
+void* get_node(char *name, node_t* bucket) {
+  node_t* base = __get_internal(name, bucket);
+  if (base == NULL) {
+    return NULL;
+  }
+
+  void *rv = base->data;
+  if (base->is_volatile) free(base);
+  return rv;
+}
+
+void set_node_data(char *name, node_t* bucket, void* data) {
+  node_t* base = __get_internal(name, bucket);
+
+  if (base == NULL) {
+    base = make_node(name);
+  }
+  base->data = data;
+  __insert_inner(name, base, bucket);
 }
